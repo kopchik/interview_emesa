@@ -1,13 +1,20 @@
 from server import setup_app
 import pytest
 pytest_plugins = 'aiohttp.pytest_plugin'
+
 from faker import Faker
 from random import randint
+import logging
+import json
+
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger(__name__)
 
 
 @pytest.fixture
 def client(loop, test_client):
     return loop.run_until_complete(test_client(setup_app))
+
 
 async def jsonreq(client, route_name, data=None, **parts):
     """ A little helper to make reverse URL mappings less painful in aiohttp 0.21+ """
@@ -19,29 +26,35 @@ async def jsonreq(client, route_name, data=None, **parts):
         uri = resource.url(parts=parts)
     else:
         uri = resource.url()
-    resp = await client.request(method, uri, data=data)
+    log.debug("URI resolved to %s", uri)
+    json_data = json.dumps(data)
+    resp = await client.request(method, uri, data=json_data)
     assert resp.status == 200
-    json = await resp.json()
-    return json
+    json_resp = await resp.json()
+    return json_resp
 
 
 def gen_fake_user():
     faker = Faker()
     name = faker.name()
-    fname, lname = name.split()
-    emails = [faker.email() for _ in range(randint(1, 3))]
+    fname, lname = name.split(maxsplit=1)
+    emails = [faker.email() for _ in range(randint(2, 3))]
     data = {'fname': fname, 'lname': lname, 'emails': emails}
-    print(data)
+    log.debug("new fake user: %s", data)
     return data
+
 
 async def test_creation(client):
     # create new object
-    json = await jsonreq(client, 'person_put', gen_fake_user())
-    print(json)
+    person = await jsonreq(client, 'person_put', gen_fake_user())
 
-    # retreive it
-    json2 = await jsonreq(client, 'person_get', id=json['id'])
-    assert json2 == json, "created and retrevied objects do not match"
+    # can we retrieve what we just created?
+    person2 = await jsonreq(client, 'person_get', id=person['id'])
+    assert person2 == person, "created and retrevied objects do not match"
 
-    json = await jsonreq(client, 'person_put', gen_fake_user())
-    print(json)
+    person3 = await jsonreq(client, 'person_put', gen_fake_user())
+
+    calendar = await jsonreq(client, 'addressbook_put', {"name": "a calendar"})
+
+    calendar = await jsonreq(client, 'addressbook_add', person3, id=calendar['id'], field="people")
+    print("!", calendar)

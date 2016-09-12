@@ -3,6 +3,8 @@
 ~~~
 virtualenv venv
 source ./venv/bin/activate
+pip install -r requirements.txt
+pytest -s ./server_test.py
 ~~~
 
 ## Design
@@ -20,7 +22,7 @@ Pros and cons of tools used:
 I used JSON because I always wanted to try it in conjuction with an SQL database
 and to avoid extra tables ("denormalization").
 
-Pros:  
+Pros:
 1. Natively supports websockets (main reason I user aiohttp)
 1. Speed (arguable)
 1. Transparency
