@@ -20,7 +20,7 @@ But for the sake of simplicity address books have separate field for people and 
 I think this still conforms the specification.
 
 I use **autopep8** (which is responsible for some weird formatting in the code),
-**pyflakes** and **pylint** to ensure the best result, **py.test** is for testing. 
+**pyflakes** and **pylint** to ensure the best result, **py.test** is for testing.
 
 Pros and cons of tools used:
 
@@ -37,5 +37,8 @@ Pros:
 
 Cons:
 
-1. No support for CORS/Auth in aiohttp
+1. No native support for CORS/Auth in aiohttp (addons required)
 1. Schema migration is not yet there for ponyorm.
+
+PS I forgot about search by e-mail. So I implemented it at the very last when
+it turned out that pony has very limited support for JSON querying. So only full match is possible without doing manual full-table scan.

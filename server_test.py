@@ -9,7 +9,7 @@ import json
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
-faker = Faker()
+faker = Faker()  # fake user data generator
 
 
 @pytest.fixture
@@ -17,16 +17,16 @@ def client(loop, test_client):
     return loop.run_until_complete(test_client(setup_app))
 
 
-async def jsonreq(client, route_name, data=None, **parts):
+async def jsonreq(client, route_name, data=None, query=None, **parts):
     """ A little helper to make reverse URL mappings less painful in aiohttp 0.21+ """
 
     app = client.app
     resource = app.router[route_name]
     method = resource._routes[0].method
     if 'formatter' in resource.get_info():
-        uri = resource.url(parts=parts)
+        uri = resource.url(parts=parts, query=query)
     else:
-        uri = resource.url()
+        uri = resource.url(query=query)
     log.debug("URI resolved to %s", uri)
     json_data = json.dumps(data)
     resp = await client.request(method, uri, data=json_data)
@@ -44,7 +44,7 @@ def gen_fake_user():
     return data
 
 
-async def test_creation(client):
+async def test_basic_operations(client):
     # create new person
     person1 = await jsonreq(client, 'person_put', gen_fake_user())
 
@@ -59,15 +59,40 @@ async def test_creation(client):
     group1 = await jsonreq(client, 'group_put', {"name": "some group"})
     group2 = await jsonreq(client, 'group_put', {"name": "nother group"})
 
-    # create calendar
-    calendar = await jsonreq(client, 'addressbook_put', {"name": "some calendar"})
+    # create address_book
+    address_book = await jsonreq(client, 'addressbook_put', {"name": "some address_book"})
 
-    # add a person to the calendar
-    calendar = await jsonreq(client, 'addressbook_add', person1, id=calendar['id'], field="people")
-    assert person1 in calendar['people']
-    assert person3 not in calendar['people']
+    # add a person to the address_book
+    address_book = await jsonreq(client, 'addressbook_add', person1, id=address_book['id'], field="people")
+    assert person1['id'] in address_book['people']
+    assert person3['id'] not in address_book['people']
 
-    # add a group to the calendar
-    calendar = await jsonreq(client, 'addressbook_add', group1, id=calendar['id'], field="groups")
-    assert group1 in calendar['groups']
-    assert group2 not in calendar['groups']
+    # get a person with a list of groups
+    person1 = await jsonreq(client, 'person_get', gen_fake_user(), id=person1['id'])
+    assert address_book['id'] in person1['address_books']
+
+    # add a group to the address_book
+    address_book = await jsonreq(client, 'addressbook_add', group1, id=address_book['id'], field="groups")
+    assert group1['id'] in address_book['groups']
+    assert group2['id'] not in address_book['groups']
+
+
+async def test_search_by_name(client):
+    # check that we can search by first name
+    person = await jsonreq(client, 'person_put', dict(fname="_fname", lname="_lname", emails=["test@example.com"]))
+    people = await jsonreq(client, 'person-find', query=dict(fname="_fname"))
+    assert len(people) == 1 and person in people
+
+    # check search by last name
+    people = await jsonreq(client, 'person-find', query=dict(lname="_lname"))
+    assert len(people) == 1 and person in people
+
+    # check search by first and last names
+    people = await jsonreq(client, 'person-find', query=dict(fname="_fname", lname="_lname"))
+    assert len(people) == 1 and person in people
+
+
+async def test_search_by_email(client):
+    person = await jsonreq(client, 'person_put', dict(fname="somename", lname="somesurname", emails=["another@example.com"]))
+    people = await jsonreq(client, 'person-find-by-email', query=dict(email="another@example.com"))
+    assert len(people) == 1 and person in people

@@ -5,11 +5,11 @@ import traceback
 import logging
 
 from pony.orm import Database, Set, Required, db_session, Json, composite_key
+from pony.orm.core import MappingError
 from validate_email import validate_email
 
 log = logging.getLogger("server")
 
-# sql_debug(True)
 db = Database()
 db.bind('sqlite', ':memory:')
 max_name_len = 255
@@ -20,17 +20,23 @@ class Error(Exception):
 
 
 def my_dict(e):
-    """ My super-duper recursive serializer. """
+    """ My super-duper recursive serializer.
+        Like pony.orm.serialization.to_dict,
+        but dereferences collections into dict/list instead of ids """
     if isinstance(e, db.Entity):
         return e.to_dict()
     if isinstance(e, list):
         return [my_dict(e) for e in e]
     elif isinstance(e, dict):
-        return {k: my_dict(v) for k,v in e.items()}
+        return {k: my_dict(v) for k, v in e.items()}
     return e
 
 
 def validate_emails(emails):
+    """ Performs very basic email verification, as many best-practices suggest.
+        It could also verify existence of domain name via DNS, but that would
+        be overkill for this task, imho.
+    """
     if not isinstance(emails, list):
         return False
     if len(emails) < 1:   # as specified in the task
@@ -41,6 +47,10 @@ def validate_emails(emails):
 
 
 class Person(db.Entity):
+    """ Defines person's representation in the DB.
+        The tuple (first name, last name) must be unique (ensured by composite_key)
+    """
+
     fname = Required(str, max_name_len)
     lname = Required(str, max_name_len)
     composite_key(fname, lname)  # unique constraint on first and last names
@@ -62,6 +72,10 @@ class AddressBook(db.Entity):
 
 
 def args_from_uri(f):
+    """ Extracts arguments from URI according to URI pattern.
+        Like for a path "/plans/678/" and pattern "/plans/{id}/"
+        it would extract id=678 and pass it as an argument.
+    """
     async def match(self, request):
         args = request.match_info
         return await f(self, request, **args)
@@ -69,6 +83,7 @@ def args_from_uri(f):
 
 
 class OhMyRestRouter:
+    """ Simple REST router for models like rest_framework.serializers.ModelSerializer. """
 
     def __init__(self, app, model, name=None):
         self.app = app
@@ -95,17 +110,17 @@ class OhMyRestRouter:
         id = int(id)
         with db_session:
             instance = self.model[id]
-        instance_data = instance.to_dict()
-        return web.json_response(instance_data)
+            instance_data = instance.to_dict(with_collections=True)
+            result = my_dict(instance_data)
+        return web.json_response(result)
 
     async def put(self, request):
-        # await request.post()
         json_data = await request.json()
         log.debug("adding to the database: %s", json_data)
         with db_session:
             instance = self.model(**json_data)
             instance.flush()  # commit instance to populate id
-            instance_data = instance.to_dict()
+            instance_data = instance.to_dict(with_collections=True)
         return web.json_response(instance_data)
 
     @args_from_uri
@@ -124,7 +139,7 @@ class OhMyRestRouter:
             item = model[json_data['id']]
             collection = getattr(instance, field.name)  # get related field
             collection.add(item)
-            data = instance.to_dict(related_objects=True, with_collections=True)
+            data = instance.to_dict(with_collections=True)
             result = my_dict(data)
         return web.json_response(result)
 
@@ -152,12 +167,55 @@ async def error_middleware(app, handler):
     return middleware_handler
 
 
+async def find_by_name(request):
+    params = request.GET
+    fname = params.get('fname')
+    lname = params.get('lname')
+    response = []
+    assert fname or lname, "you need at least one parameter: fname, lname or both"
+
+    with db_session:
+        query = Person.select()
+        if fname:
+            query = query.filter(fname=fname)
+        if lname:
+            query = query.filter(lname=lname)
+
+        for person in list(query):
+            person = person.to_dict(with_collections=True)
+            response.append(person)
+    return web.json_response(response)
+
+
+async def find_by_email(request):
+    email = request.GET['email']
+    response = []
+    with db_session:
+        query = Person.select(lambda p: email in p.emails)
+        for person in list(query):
+            person = person.to_dict(with_collections=True)
+            response.append(person)
+    return web.json_response(response)
+
+
 def setup_app(loop=None):
     app = web.Application(middlewares=[error_middleware], loop=loop)
     OhMyRestRouter(app=app, model=Person)
     OhMyRestRouter(app=app, model=Group)
     OhMyRestRouter(app=app, model=AddressBook)
-    db.generate_mapping(create_tables=True)
+    try:
+
+        db.generate_mapping(create_tables=True)
+    # ignoring "Mapping was already generated"
+    # when py.test runs setup_app second/third time to make new fixtures
+    except MappingError:
+        pass
+    app.router.add_route('GET', r"/person/find/",
+                         find_by_name, name='person-find')
+
+    app.router.add_route('GET', r"/person/find-by-email/",
+                         find_by_email, name='person-find-by-email')
+
     return app
 
 
@@ -195,3 +253,5 @@ if __name__ == '__main__':
         print("nothing really to do, spawning an interactive shell")
         with db_session:
             embed()
+    else:
+        web.run_app(app)
