@@ -16,7 +16,7 @@ My first intention was to use Django REST, but I decided to try something new th
 ### PonyORM
 Concerning Person and Group models.
 One could use model inheritance so both people and groups could be easily add to a calendar.
-But for the sake of simplicity address books have separate field for people and for groups.
+But, for the sake of simplicity, address books have separate field for people and for groups.
 I think this still conforms the specification.
 
 I use **autopep8** (which is responsible for some weird formatting in the code),
