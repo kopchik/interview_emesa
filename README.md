@@ -19,13 +19,13 @@ One could use model inheritance so both people and groups could be easily add to
 But for the sake of simplicity address books have separate field for people and for groups.
 I think this still conforms the specification.
 
-I use *autopep8* (which is responsible for some weird formatting in the code),
-*pyflakes* and *pylint* to ensure the best result.
+I use **autopep8** (which is responsible for some weird formatting in the code),
+**pyflakes** and **pylint** to ensure the best result.
 
 Pros and cons of tools used:
 
-I used JSON because I always wanted to try it in conjunction with an SQL database
-and to avoid extra tables ("denormalization").
+I used JSON field for *Person.emails* because I always wanted to try it in conjunction with an SQL database
+and to avoid extra tables ("denormalization"). Looks like it works, though requires manual  validation.
 
 Pros:
 1. Natively supports websockets (the main reason for me to use aiohttp)
