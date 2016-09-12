@@ -9,6 +9,7 @@ import json
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
+faker = Faker()
 
 
 @pytest.fixture
@@ -35,7 +36,6 @@ async def jsonreq(client, route_name, data=None, **parts):
 
 
 def gen_fake_user():
-    faker = Faker()
     name = faker.name()
     fname, lname = name.split(maxsplit=1)
     emails = [faker.email() for _ in range(randint(2, 3))]
@@ -45,16 +45,29 @@ def gen_fake_user():
 
 
 async def test_creation(client):
-    # create new object
-    person = await jsonreq(client, 'person_put', gen_fake_user())
+    # create new person
+    person1 = await jsonreq(client, 'person_put', gen_fake_user())
 
     # can we retrieve what we just created?
-    person2 = await jsonreq(client, 'person_get', id=person['id'])
-    assert person2 == person, "created and retrevied objects do not match"
+    person2 = await jsonreq(client, 'person_get', id=person1['id'])
+    assert person2 == person1, "created and retrevied objects do not match"
 
+    # okay, add some new person
     person3 = await jsonreq(client, 'person_put', gen_fake_user())
 
-    calendar = await jsonreq(client, 'addressbook_put', {"name": "a calendar"})
+    # create a few group
+    group1 = await jsonreq(client, 'group_put', {"name": "some group"})
+    group2 = await jsonreq(client, 'group_put', {"name": "nother group"})
 
-    calendar = await jsonreq(client, 'addressbook_add', person3, id=calendar['id'], field="people")
-    print("!", calendar)
+    # create calendar
+    calendar = await jsonreq(client, 'addressbook_put', {"name": "some calendar"})
+
+    # add a person to the calendar
+    calendar = await jsonreq(client, 'addressbook_add', person1, id=calendar['id'], field="people")
+    assert person1 in calendar['people']
+    assert person3 not in calendar['people']
+
+    # add a group to the calendar
+    calendar = await jsonreq(client, 'addressbook_add', group1, id=calendar['id'], field="groups")
+    assert group1 in calendar['groups']
+    assert group2 not in calendar['groups']

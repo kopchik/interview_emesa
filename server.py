@@ -15,6 +15,21 @@ db.bind('sqlite', ':memory:')
 max_name_len = 255
 
 
+class Error(Exception):
+    """ Some module-specific exception as recommended by best practices. """
+
+
+def my_dict(e):
+    """ My super-duper recursive serializer. """
+    if isinstance(e, db.Entity):
+        return e.to_dict()
+    if isinstance(e, list):
+        return [my_dict(e) for e in e]
+    elif isinstance(e, dict):
+        return {k: my_dict(v) for k,v in e.items()}
+    return e
+
+
 def validate_emails(emails):
     if not isinstance(emails, list):
         return False
@@ -86,18 +101,18 @@ class OhMyRestRouter:
     async def put(self, request):
         # await request.post()
         json_data = await request.json()
-        print("JSON", json_data)
         log.debug("adding to the database: %s", json_data)
         with db_session:
             instance = self.model(**json_data)
             instance.flush()  # commit instance to populate id
-            # import pdb; pdb.set_trace()
-        instance_data = instance.to_dict()
+            instance_data = instance.to_dict()
         return web.json_response(instance_data)
 
     @args_from_uri
     async def add(self, request, id, field):
         id = int(id)
+        if not hasattr(self.model, field):
+            raise Error("no such field: %s" % field)
         field = getattr(self.model, field)
         assert isinstance(field, Set), "we can add only to Set() field"
         model = field.py_type  # model of item we are going to add
@@ -109,7 +124,8 @@ class OhMyRestRouter:
             item = model[json_data['id']]
             collection = getattr(instance, field.name)  # get related field
             collection.add(item)
-        result = item.to_dict()
+            data = instance.to_dict(related_objects=True, with_collections=True)
+            result = my_dict(data)
         return web.json_response(result)
 
     @args_from_uri
@@ -129,8 +145,9 @@ async def error_middleware(app, handler):
             response = await handler(request)
             return response
         except Exception as ex:
-            log.error("error while serving request:")
-            traceback.print_last()
+            tb = traceback.format_exc(limit=100)
+            log.error("error while serving request:\n%s", tb)
+
             return json_error(str(ex))
     return middleware_handler
 
