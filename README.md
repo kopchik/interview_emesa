@@ -20,14 +20,16 @@ But for the sake of simplicity address books have separate field for people and 
 I think this still conforms the specification.
 
 I use **autopep8** (which is responsible for some weird formatting in the code),
-**pyflakes** and **pylint** to ensure the best result.
+**pyflakes** and **pylint** to ensure the best result, **py.test** is for testing. 
 
 Pros and cons of tools used:
 
 I used JSON field for *Person.emails* because I always wanted to try it in conjunction with an SQL database
 and to avoid extra tables ("denormalization"). Looks like it works, though requires manual  validation.
+Some short list of prons and cons of chosen tools:
 
 Pros:
+
 1. Natively supports websockets (the main reason for me to use aiohttp)
 1. Speed (arguable)
 1. Transparency (no sophisticated machinery under the hood)
