@@ -53,10 +53,10 @@ I use **autopep8** (which is responsible for some weird formatting in the code),
 
 ## Searching emails by a substring (Design-only Question)
 
-For a small set of data (like some hundreds or a few k emails) I would just do brutforce (assuming good data locality of course).
+For a small set of data (like some hundreds or a few k emails) I would just do brutforce (assuming good data locality (=cache friendly) of course).
 For bigger datasets I would make an index of all substrings of some minimum length N.
 The index would be quite big (more than the data itself), but would have a very good performance.
-Please see the following file for some more reasoning on this and potential improvements: https://github.com/kopchik/itasks/blob/master/round5/data_search_naive.py . We could go further like performing prefix-tree "compression", or separate indexing of domain names and mailbox names, but I think that would be an overkill.
+Please see the following script that solve a sort of similar task (finding a common substring) for some more reasoning on this and other potential improvements: https://github.com/kopchik/itasks/blob/master/round5/data_search_naive.py . We could go further like performing prefix-tree "compression", or separate indexing of domain names and mailbox names, but I think that would be an overkill.
 
 
 
